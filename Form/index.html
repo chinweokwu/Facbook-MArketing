@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Country & State Dropdown</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+
+    #container {
+        text-align: center;
+    }
+
+    select, input[type="number"] {
+        padding: 8px;
+        margin: 5px;
+    }
+</style>
+</head>
+<body>
+<div id="container">
+    <label for="country">Country:</label>
+    <select id="country" onchange="fetchStates()">
+        <option value="">Select Country</option>
+    </select>
+    <br>
+    <label for="state">State:</label>
+    <select id="state" onchange="fetchCities()">
+        <option value="">Select State</option>
+    </select>
+    <br>
+    <label for="city">City:</label>
+    <select id="city">
+        <option value="">Select City</option>
+    </select>
+    <br>
+    <label for="miles">Miles:</label>
+    <input type="number" id="miles" min="0">
+    <br>
+    <button onclick="collectData()">Submit</button>
+</div>
+
+<script>
+let countriesData; // Variable to store fetched countries data
+let statesData = []; // Array to store fetched states data
+
+// Fetch countries from the API
+fetch('https://countriesnow.space/api/v0.1/countries/states/')
+    .then(response => response.json())
+    .then(data => {
+        countriesData = data; // Store the fetched data in the variable
+        const countryDropdown = document.getElementById('country');
+        data.data.forEach(country => {
+            const option = document.createElement('option');
+            option.value = country.name;
+            option.textContent = country.name;
+            countryDropdown.appendChild(option);
+        });
+        // After populating countries, fetch states for the initially selected country (if any)
+        fetchStates();
+    })
+    .catch(error => console.error('Error fetching countries:', error));
+
+// Function to fetch states based on selected country
+function fetchStates() {
+    const countryDropdown = document.getElementById('country');
+    const selectedCountry = countryDropdown.value;
+    console.log("Selected Country:", selectedCountry); // Debugging statement
+    const stateDropdown = document.getElementById('state');
+    stateDropdown.innerHTML = '<option value="">Select State</option>';
+
+    if (selectedCountry !== "") {
+        // Find the selected country data from the stored data
+        const selectedCountryData = countriesData.data.find(country => country.name === selectedCountry);
+        if (selectedCountryData) {
+            // Loop through the states of the selected country
+            selectedCountryData.states.forEach(state => {
+                const option = document.createElement('option');
+                option.value = state.name;
+                option.textContent = state.name;
+                stateDropdown.appendChild(option);
+                // Save state data to the statesData array
+                statesData.push(state.name);
+            });
+
+            // Automatically select the first state
+            if (selectedCountryData.states.length > 0) {
+                stateDropdown.selectedIndex = 1; // Select the first state (assuming the first index is 1)
+                console.log("Selected State:", stateDropdown.value); // Debugging statement
+                // Trigger the fetchCities() function to populate cities for the selected state
+                fetchCities();
+            }
+        }
+    }
+}
+
+// Function to fetch cities based on selected state
+function fetchCities() {
+    const countryDropdown = document.getElementById('country');
+    const stateDropdown = document.getElementById('state');
+    const selectedCountry = countryDropdown.value;
+    const selectedState = stateDropdown.value;
+
+    if (selectedCountry !== "" && selectedState !== "") {
+        const url = `https://countriesnow.space/api/v0.1/countries/state/cities/q?country=${selectedCountry}&state=${selectedState}`;
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                const cityDropdown = document.getElementById('city');
+                cityDropdown.innerHTML = '<option value="">Select City</option>';
+                data.data.forEach(city => {
+                    const option = document.createElement('option');
+                    option.value = city;
+                    option.textContent = city;
+                    cityDropdown.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error fetching cities:', error));
+    }
+}
+
+// Function to collect data from all fields and console log it
+function collectData() {
+    const country = document.getElementById('country').value;
+    const state = document.getElementById('state').value;
+    const city = document.getElementById('city').value;
+    const miles = document.getElementById('miles').value;
+
+    // Validate all fields
+    if (country === "" || state === "" || city === "" || miles === "") {
+        alert("Please fill in all fields.");
+        return;
+    }
+
+    console.log("Country:", country);
+    console.log("State:", state);
+    console.log("City:", city);
+    console.log("Miles:", miles);
+    geoLocation(country, state, city, miles);
+    clearForm();
+}
+
+// Function to clear all form fields
+function clearForm() {
+    document.getElementById('country').selectedIndex = 0;
+    document.getElementById('state').innerHTML = '<option value="">Select State</option>';
+    document.getElementById('city').innerHTML = '<option value="">Select City</option>';
+    document.getElementById('miles').value = '';
+}
+
+// Function to fetch nearby places based on longitude and latitude
+function geoLocation(country, state, city, miles) {
+    const mapboxApiKey = 'pk.eyJ1IjoibW9yYWgiLCJhIjoiY2x1bTVhcmhqMDJ2djJrbXNiY25hNmhucCJ9.ymmMSouaxI4vwnGhJVP5VQ';
+    // Construct the URL for the Geocoding API request
+    const geocodingUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(city)},${encodeURIComponent(state)},${encodeURIComponent(country)}.json?access_token=${mapboxApiKey}`;
+
+    // Fetch the data from the API
+    fetch(geocodingUrl)
+        .then(response => response.json())
+        .then(data => {
+            // Extract longitude and latitude from the API response
+            const longitude = data.features[0].center[0];
+            const latitude = data.features[0].center[1];
+            
+            // Log the coordinates to the console (for testing)
+            console.log("Longitude:", longitude);
+            console.log("Latitude:", latitude);
+
+            // Construct the URL for fetching nearby places
+            const placesUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=${mapboxApiKey}&types=poi&limit=10`;
+
+            // Fetch nearby places from the API
+            fetch(placesUrl)
+                .then(response => response.json())
+                .then(data => {
+                    const nearbyPlaces = data.features;
+                    console.log(`Nearby places within ${miles} miles:`);
+                    nearbyPlaces.forEach(place => {
+                        console.log(place.place_name);
+                    });
+                })
+                .catch(error => console.error('Error fetching nearby places:', error));
+          
+        })
+        .catch(error => console.error('Error fetching geolocation data:', error));
+}
+
+</script>
+</body>
+</html>
